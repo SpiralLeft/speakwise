@@ -7,6 +7,12 @@
 set -e
 cd "$(dirname "$0")/.."
 
+echo "⓪ 语法检查..."
+node --check server.cjs || { echo "❌ server.cjs 语法错误，已终止打包"; exit 1; }
+for f in server/*.cjs; do
+  node --check "$f" || { echo "❌ $f 语法错误，已终止打包"; exit 1; }
+done
+
 echo "① 前端构建..."
 npm run build >/dev/null 2>&1 || { echo "❌ 前端构建失败"; exit 1; }
 echo "   dist/ 已更新（静态托管用）"
