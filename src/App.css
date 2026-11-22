@@ -135,6 +135,12 @@ body { font-family: 'Noto Sans SC', sans-serif; }
   color: #fff;
   padding: 16px 20px 22px;
   min-height: 140px;
+  /* 三行（汉字/拼音/英文）比原来的单行高得多，长段文言会顶出屏幕。
+     限高并允许滚动，保证整段内容都读得到。 */
+  max-height: 72vh;
+  max-height: 72dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   z-index: 10;
 }
 

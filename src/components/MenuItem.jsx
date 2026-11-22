@@ -1,4 +1,6 @@
-export function MenuItem({ item, onClick, hovered, onHover, badge }) {
+// showPinyin / showEnglish 由各板块按全局显示模式传入；MainMenu 不传，行为与以前完全一致。
+// 注音只用一个颜色，不做声调多色标记（多色只在发音测评里用）。
+export function MenuItem({ item, onClick, hovered, onHover, badge, showPinyin = false, showEnglish = false }) {
   return (
     <div
       onClick={onClick}
@@ -22,11 +24,27 @@ export function MenuItem({ item, onClick, hovered, onHover, badge }) {
             <span style={{ fontSize: 20, fontWeight: 600, color: "#1a1a1a" }}>{item.title}</span>
             {badge && <span style={{ fontSize: 11, background: item.color + "18", color: item.color, padding: "2px 10px", borderRadius: 10, fontWeight: 600 }}>{badge}</span>}
           </div>
+          {showPinyin && item.titlePinyin && (
+            <div style={{ fontSize: 12, color: "#aaa", marginTop: 1, lineHeight: 1.5 }}>{item.titlePinyin}</div>
+          )}
+          {/* 英文紧随拼音，章节序号（titleEn）退到最后这一行：
+              「汉字 → 拼音 → 英文」是本应用统一的注音顺序 */}
+          {showEnglish && item.english && (
+            <div style={{ fontSize: 12, color: "#999", marginTop: 1, lineHeight: 1.5 }}>{item.english}</div>
+          )}
           <div style={{ fontSize: 13, color: "#aaa", marginTop: 2 }}>{item.titleEn}</div>
         </div>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flex: 1 }}>
-        <div style={{ fontSize: 14, color: "#666", lineHeight: 1.5, paddingRight: 10 }}>{item.desc}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, color: "#666", lineHeight: 1.5, paddingRight: 10 }}>{item.desc}</div>
+          {showPinyin && item.descPinyin && (
+            <div style={{ fontSize: 12, color: "#b0b0b0", lineHeight: 1.5, paddingRight: 10, marginTop: 2 }}>{item.descPinyin}</div>
+          )}
+          {showEnglish && item.descEn && (
+            <div style={{ fontSize: 12, color: "#999", lineHeight: 1.5, paddingRight: 10, marginTop: 2 }}>{item.descEn}</div>
+          )}
+        </div>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={hovered === item.id ? item.color : "#ccc"} strokeWidth="2" style={{ flexShrink: 0, transition: "transform 0.25s", transform: hovered === item.id ? "translateX(4px)" : "none", marginBottom: 2 }}>
           <polyline points="9 18 15 12 9 6" />
         </svg>

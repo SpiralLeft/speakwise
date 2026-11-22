@@ -13,65 +13,9 @@ import {
   coreFor,
   extractFeedback,
   dimensionCells,
-  toneAlign,
-  TONE_COLORS,
-  TONE_LABELS,
-  TONE_SAMPLES
+  toneAlign
 } from '../core/utils/pronunciationBank'
-
-/**
- * 按声调着色的正文 / 拼音行 / 图例（与 Web 版同形，只是换成 Taro 的 View/Text）。
- * toneMap 为 null（没有拼音、或拼音与正文对不上）时一律原样渲染 —— 宁可不配色，
- * 也不能让颜色和字错位，学生看不出标注错了（见 core/utils/pronunciationBank.toneAlign）。
- */
-function ToneText({ text, toneMap, style }) {
-  if (!toneMap) return <Text style={style}>{text}</Text>
-  // 小程序里嵌套 Text 才会继承字号，逐字着色必须靠内层 Text（View 会另起一块）
-  return (
-    <Text style={style}>
-      {Array.from(text).map((c, i) =>
-        toneMap.tones[i] ? (
-          <Text key={i} style={{ color: TONE_COLORS[toneMap.tones[i]] }}>{c}</Text>
-        ) : (
-          <Text key={i}>{c}</Text>
-        )
-      )}
-    </Text>
-  )
-}
-
-function TonePinyin({ pinyin, toneMap, style }) {
-  if (!toneMap) return <Text style={style}>{pinyin}</Text>
-  return (
-    <Text style={style}>
-      {toneMap.spans.map((s, i) =>
-        s.tone ? (
-          <Text key={i} style={{ color: TONE_COLORS[s.tone] }}>{s.text}</Text>
-        ) : (
-          <Text key={i}>{s.text}</Text>
-        )
-      )}
-    </Text>
-  )
-}
-
-function ToneLegend() {
-  return (
-    <View style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
-      {[1, 2, 3, 4, 5].map((t) => (
-        <View key={t} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <View
-            style={{ width: 7, height: 7, borderRadius: '50%', background: TONE_COLORS[t] }}
-          />
-          <Text style={{ fontSize: 11, color: TONE_COLORS[t], fontWeight: 600 }}>
-            {TONE_SAMPLES[t]}
-          </Text>
-          <Text style={{ fontSize: 11, color: '#aaa' }}>{TONE_LABELS[t]}</Text>
-        </View>
-      ))}
-    </View>
-  )
-}
+import { ToneText, TonePinyin, ToneLegend } from './ToneAnnotated'
 
 // records.scenario 在库里是 VARCHAR(128)，超长会触发 MySQL 严格模式的 ER_DATA_TOO_LONG。
 // saveRecord 遇到写入失败只会静默降级到本地存储（见 core/utils/recordStore.js），

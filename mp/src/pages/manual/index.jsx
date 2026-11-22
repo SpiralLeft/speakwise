@@ -14,12 +14,16 @@ const TABS = [
   { id: 'pinyin', label: '语音声调', icon: '🗣️' }
 ]
 
+// 标题与示例按显示模式拆成「汉字 / 拼音 / 英文」三行，与 Web 版一致。
+// 注音只用一个颜色 —— 声调多色标记只保留在发音测评页。
 export default function StudyManual() {
   const [tab, setTab] = useState('vocab')
   const [openCard, setOpenCard] = useState(null)
   const { ready } = useGuard({ studentOnly: true })
-  const { hsk: hskLevel, setHsk: onChangeHSK } = useApp()
+  const { hsk: hskLevel, setHsk: onChangeHSK, viewMode: mode, setViewMode: onChangeMode } = useApp()
 
+  const showPinyin = mode === 'HPE' || mode === 'HP'
+  const showEnglish = mode === 'HPE' || mode === 'HE'
   const data = MANUAL_DATA[hskLevel]?.[tab] || []
   const lv = HSK_LEVELS.find((l) => l.id === hskLevel)
 
@@ -33,6 +37,8 @@ export default function StudyManual() {
         onBack={() => back(ROUTES.main)}
         hskLevel={hskLevel}
         onChangeHSK={onChangeHSK}
+        mode={mode}
+        onChangeMode={onChangeMode}
       />
       <PageWrap>
         <View style={{ padding: '32px 0 80px' }}>
@@ -136,16 +142,28 @@ export default function StudyManual() {
                     >
                       {idxStr}
                     </Text>
-                    <Text
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 600,
-                        color: isOpen ? '#D4413A' : '#1a1a1a',
-                        flex: 1
-                      }}
-                    >
-                      {item.title}
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 600,
+                          color: isOpen ? '#D4413A' : '#1a1a1a',
+                          display: 'block'
+                        }}
+                      >
+                        {item.title}
+                      </Text>
+                      {showPinyin && item.titlePinyin && (
+                        <Text style={{ fontSize: 12, color: '#999', lineHeight: 1.5, marginTop: 3, display: 'block' }}>
+                          {item.titlePinyin}
+                        </Text>
+                      )}
+                      {showEnglish && item.titleEn && (
+                        <Text style={{ fontSize: 11, color: '#aaa', display: 'block', marginTop: 3 }}>
+                          {item.titleEn}
+                        </Text>
+                      )}
+                    </View>
                     {/* Web 版是内联 svg 折角，小程序渲染不了 —— CSS 画一个 */}
                     <View
                       style={{
@@ -155,7 +173,9 @@ export default function StudyManual() {
                         borderBottom: `2.5px solid ${isOpen ? '#D4413A' : '#ccc'}`,
                         transform: isOpen ? 'rotate(225deg)' : 'rotate(45deg)',
                         marginBottom: isOpen ? -4 : 4,
-                        marginRight: 2
+                        marginRight: 2,
+                        marginLeft: 12,
+                        flexShrink: 0
                       }}
                     />
                   </View>
@@ -187,9 +207,19 @@ export default function StudyManual() {
                         >
                           Example / 示例
                         </Text>
-                        <Text style={{ lineHeight: 1.5, color: '#D4413A', fontSize: 13 }}>
+                        <Text style={{ lineHeight: 1.6, color: '#1a1a1a', fontSize: 13, display: 'block' }}>
                           {item.example}
                         </Text>
+                        {showPinyin && item.examplePinyin && (
+                          <Text style={{ display: 'block', marginTop: 6, fontSize: 13, lineHeight: 1.6, color: '#B34A43' }}>
+                            {item.examplePinyin}
+                          </Text>
+                        )}
+                        {showEnglish && item.exampleEn && (
+                          <Text style={{ display: 'block', marginTop: 4, fontSize: 13, color: '#999', lineHeight: 1.6 }}>
+                            {item.exampleEn}
+                          </Text>
+                        )}
                       </View>
                     </View>
                   )}

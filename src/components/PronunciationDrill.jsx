@@ -6,48 +6,8 @@ import { useSpeech } from "../hooks/useSpeech.js";
 import { evaluatePronunciation } from "../utils/api.js";
 import { createAudioRecorder } from "../utils/audioRecorder.js";
 import { buildRecord, saveRecord } from "../utils/recordStore.js";
-import { coreFor, extractFeedback, dimensionCells, toneAlign, TONE_COLORS, TONE_LABELS, TONE_SAMPLES } from "../utils/pronunciationBank.js";
-
-/**
- * 按声调着色的正文 / 拼音行 / 图例。
- * toneMap 为 null（没有拼音、或拼音与正文对不上）时一律原样渲染 —— 宁可不配色，
- * 也不能让颜色和字错位，学生看不出标注错了（见 pronunciationBank.toneAlign）。
- */
-function ToneText({ text, toneMap, style }) {
-  if (!toneMap) return <div style={style}>{text}</div>;
-  return (
-    <div style={style}>
-      {Array.from(text).map((c, i) => (toneMap.tones[i]
-        ? <span key={i} style={{ color: TONE_COLORS[toneMap.tones[i]] }}>{c}</span>
-        : <span key={i}>{c}</span>))}
-    </div>
-  );
-}
-
-function TonePinyin({ pinyin, toneMap, style }) {
-  if (!toneMap) return <div style={style}>{pinyin}</div>;
-  return (
-    <div style={style}>
-      {toneMap.spans.map((s, i) => (s.tone
-        ? <span key={i} style={{ color: TONE_COLORS[s.tone] }}>{s.text}</span>
-        : <span key={i}>{s.text}</span>))}
-    </div>
-  );
-}
-
-function ToneLegend() {
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16, fontSize: 11, color: "#aaa" }}>
-      {[1, 2, 3, 4, 5].map(t => (
-        <span key={t} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: TONE_COLORS[t], display: "inline-block" }} />
-          <span style={{ color: TONE_COLORS[t], fontWeight: 600 }}>{TONE_SAMPLES[t]}</span>
-          {TONE_LABELS[t]}
-        </span>
-      ))}
-    </div>
-  );
-}
+import { coreFor, extractFeedback, dimensionCells, toneAlign } from "../utils/pronunciationBank.js";
+import { ToneText, TonePinyin, ToneLegend } from "./ToneAnnotated.jsx";
 
 // records.scenario 在库里是 VARCHAR(128)，超长会触发 MySQL 严格模式的 ER_DATA_TOO_LONG。
 // saveRecord 遇到写入失败只会静默降级到 localStorage（见 utils/recordStore.js），

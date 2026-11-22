@@ -4,6 +4,8 @@ import * as CH1 from "../data/cultureGameCh1.js";
 import * as CH2 from "../data/cultureGameCh2.js";
 import * as CH3 from "../data/cultureGameCh3.js";
 import { buildRecord, saveRecord } from "../utils/recordStore.js";
+import { useApp } from "../context/AppContext.jsx";
+import { MODES } from "../data/constants.js";
 
 const CHAPTERS = { ch1: CH1, ch2: CH2, ch3: CH3 };
 
@@ -11,12 +13,15 @@ export function CultureGame() {
   const navigate = useNavigate();
   const { chapterId } = useParams();
   const CH = CHAPTERS[chapterId] || CH3;
+  const { viewMode: mode, setViewMode: onChangeMode } = useApp();
+  const showPinyin = mode === "HPE" || mode === "HP";
+  const showEnglish = mode === "HPE" || mode === "HE";
 
   const [phase, setPhase] = useState("intro");
   const [dialogIdx, setDialogIdx] = useState(0);
   const [showChoices, setShowChoices] = useState(false);
   const [branchNode, setBranchNode] = useState(null);
-  const [badMsg, setBadMsg] = useState("");
+  const [bad, setBad] = useState(null);   // { text, pinyin, english }：Bad End 台词与注音/译文
   const [animKey, setAnimKey] = useState(0);
 
   const currentScript = (() => {
@@ -66,7 +71,7 @@ export function CultureGame() {
       }
       setAnimKey(k => k + 1);
     } else {
-      setBadMsg(choice.feedback + "　Bad End……");
+      setBad({ text: choice.feedback, pinyin: choice.feedbackPinyin || "", english: choice.feedbackEn || "" });
       setPhase("bad");
     }
   }, [phase]);
@@ -74,7 +79,7 @@ export function CultureGame() {
   const restart = () => {
     setPhase("intro"); setDialogIdx(0);
     setShowChoices(false); setBranchNode(null);
-    setBadMsg(""); setAnimKey(k => k + 1);
+    setBad(null); setAnimKey(k => k + 1);
   };
 
   const handleTap = () => {
@@ -150,6 +155,20 @@ export function CultureGame() {
           <div style={{ fontSize: 16, fontWeight: 600, color: "#f4d03f" }}>文化文游</div>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{CH.META.title} · {CH.META.subtitle}</div>
         </div>
+        {/* 沉浸页没有 TopBar，模式切换放在这里：读到生字想开拼音时不用退回菜单 */}
+        <select
+          aria-label="显示模式"
+          value={mode}
+          onChange={(e) => onChangeMode(e.target.value)}
+          style={{
+            marginLeft: "auto", background: "rgba(255,255,255,0.12)",
+            border: "1px solid rgba(244,208,63,0.45)", borderRadius: 12,
+            color: "#f4d03f", fontSize: 12, fontFamily: "inherit",
+            padding: "3px 8px", outline: "none", cursor: "pointer",
+          }}
+        >
+          {MODES.map(m => <option key={m.id} value={m.id} style={{ color: "#111", background: "#fff" }}>{m.label}</option>)}
+        </select>
       </div>
 
       {/* Dialog box: click advances story when no choices */}
@@ -160,19 +179,51 @@ export function CultureGame() {
         {displayNode?.text && (
           <div key={`txt-${animKey}`} className="culture-dialog-text">{displayNode.text}</div>
         )}
+        {showPinyin && displayNode?.pinyin && (
+          <div
+            key={`py-${animKey}`}
+            style={{ fontSize: 13, lineHeight: 1.6, color: "rgba(255,255,255,0.6)", marginTop: 2, animation: "su 0.35s both" }}
+          >
+            {displayNode.pinyin}
+          </div>
+        )}
+        {showEnglish && displayNode?.english && (
+          <div
+            key={`en-${animKey}`}
+            style={{ fontSize: 13, lineHeight: 1.6, color: "rgba(255,255,255,0.55)", marginTop: 2, animation: "su 0.35s both" }}
+          >
+            {displayNode.english}
+          </div>
+        )}
 
         {/* Choices inside dialog box, below text */}
         {showChoices && (
           <div className="culture-choices">
             {(phase === "choice1" ? CH.CHOICE_1 : CH.CHOICE_2).map((c, i) => (
-              <button key={i} onClick={() => handleChoice(c)}>{c.text}</button>
+              <button key={i} onClick={() => handleChoice(c)}>
+                <span style={{ display: "block" }}>{c.text}</span>
+                {showPinyin && c.pinyin && (
+                  <span style={{ display: "block", marginTop: 4, fontSize: 11, fontWeight: 500, lineHeight: 1.5, opacity: 0.8 }}>{c.pinyin}</span>
+                )}
+                {showEnglish && c.english && (
+                  <span style={{ display: "block", marginTop: 2, fontSize: 11, fontWeight: 400, lineHeight: 1.5, opacity: 0.7 }}>{c.english}</span>
+                )}
+              </button>
             ))}
           </div>
         )}
 
         {phase === "bad" && (
           <div className="culture-ending">
-            <div className="culture-ending-msg">{badMsg}</div>
+            <div className="culture-ending-msg">
+              {bad?.text}　Bad End……
+              {showPinyin && bad?.pinyin && (
+                <div style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.6, color: "rgba(255,255,255,0.45)" }}>{bad.pinyin}</div>
+              )}
+              {showEnglish && bad?.english && (
+                <div style={{ marginTop: 2, fontSize: 12.5, lineHeight: 1.6, color: "rgba(255,255,255,0.45)" }}>{bad.english}</div>
+              )}
+            </div>
             <button className="culture-restart-btn" onClick={restart}>重新来过</button>
           </div>
         )}
