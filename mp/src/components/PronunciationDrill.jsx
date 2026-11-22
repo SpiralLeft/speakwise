@@ -9,7 +9,69 @@ import { evaluatePronunciation } from '../core/utils/api'
 import { resetRecorder, startRecording, stopRecording } from '../platform/recorder'
 import { micErrorToast } from '../platform/privacy'
 import { buildRecord, saveRecord } from '../core/utils/recordStore'
-import { coreFor, extractFeedback, dimensionCells } from '../core/utils/pronunciationBank'
+import {
+  coreFor,
+  extractFeedback,
+  dimensionCells,
+  toneAlign,
+  TONE_COLORS,
+  TONE_LABELS,
+  TONE_SAMPLES
+} from '../core/utils/pronunciationBank'
+
+/**
+ * 按声调着色的正文 / 拼音行 / 图例（与 Web 版同形，只是换成 Taro 的 View/Text）。
+ * toneMap 为 null（没有拼音、或拼音与正文对不上）时一律原样渲染 —— 宁可不配色，
+ * 也不能让颜色和字错位，学生看不出标注错了（见 core/utils/pronunciationBank.toneAlign）。
+ */
+function ToneText({ text, toneMap, style }) {
+  if (!toneMap) return <Text style={style}>{text}</Text>
+  // 小程序里嵌套 Text 才会继承字号，逐字着色必须靠内层 Text（View 会另起一块）
+  return (
+    <Text style={style}>
+      {Array.from(text).map((c, i) =>
+        toneMap.tones[i] ? (
+          <Text key={i} style={{ color: TONE_COLORS[toneMap.tones[i]] }}>{c}</Text>
+        ) : (
+          <Text key={i}>{c}</Text>
+        )
+      )}
+    </Text>
+  )
+}
+
+function TonePinyin({ pinyin, toneMap, style }) {
+  if (!toneMap) return <Text style={style}>{pinyin}</Text>
+  return (
+    <Text style={style}>
+      {toneMap.spans.map((s, i) =>
+        s.tone ? (
+          <Text key={i} style={{ color: TONE_COLORS[s.tone] }}>{s.text}</Text>
+        ) : (
+          <Text key={i}>{s.text}</Text>
+        )
+      )}
+    </Text>
+  )
+}
+
+function ToneLegend() {
+  return (
+    <View style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
+      {[1, 2, 3, 4, 5].map((t) => (
+        <View key={t} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <View
+            style={{ width: 7, height: 7, borderRadius: '50%', background: TONE_COLORS[t] }}
+          />
+          <Text style={{ fontSize: 11, color: TONE_COLORS[t], fontWeight: 600 }}>
+            {TONE_SAMPLES[t]}
+          </Text>
+          <Text style={{ fontSize: 11, color: '#aaa' }}>{TONE_LABELS[t]}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
 
 // records.scenario 在库里是 VARCHAR(128)，超长会触发 MySQL 严格模式的 ER_DATA_TOO_LONG。
 // saveRecord 遇到写入失败只会静默降级到本地存储（见 core/utils/recordStore.js），
@@ -51,6 +113,7 @@ export function PronunciationDrill({
   const total = bank.length
   const color = '#7B6CF6'
   const bg = '#F3F0FF'
+  const toneMap = q ? toneAlign(q.text, q.pinyin) : null
 
   // 反馈出现后滚到它那里。Web 版用 scrollIntoView，小程序对应 pageScrollTo。
   // 拿不到元素位置就退化成滚到页面顶部，不至于什么都不做。
@@ -348,7 +411,9 @@ export function PronunciationDrill({
               ) : null}
             </View>
 
-            <Text
+            <ToneText
+              text={q.text}
+              toneMap={toneMap}
               style={{
                 fontSize: q.unit === '句' ? 22 : 34,
                 fontWeight: 700,
@@ -357,11 +422,13 @@ export function PronunciationDrill({
                 marginBottom: 8,
                 lineHeight: 1.5
               }}
-            >
-              {q.text}
-            </Text>
+            />
             {(mode === 'HPE' || mode === 'HP') && q.pinyin ? (
-              <Text style={{ fontSize: 14, color, display: 'block', marginBottom: 4 }}>{q.pinyin}</Text>
+              <TonePinyin
+                pinyin={q.pinyin}
+                toneMap={toneMap}
+                style={{ fontSize: 14, color, display: 'block', marginBottom: 4 }}
+              />
             ) : null}
             {(mode === 'HPE' || mode === 'HE') && q.english ? (
               <Text style={{ fontSize: 13, color: '#999', display: 'block' }}>{q.english}</Text>
@@ -417,6 +484,8 @@ export function PronunciationDrill({
                 <Text style={{ fontSize: 12, color }}>{speakingSlow ? '⏹ 停止' : '慢速'}</Text>
               </View>
             </View>
+            {/* 图例只在对上声调时出现：自定义练习没拼音，配了色也说明不了什么 */}
+            {toneMap ? <ToneLegend /> : null}
           </View>
 
           {/* ── Pronunciation mode feedback (iFlytek multi-dimension) ── */}
@@ -588,9 +657,9 @@ export function PronunciationDrill({
                   参考发音
                 </Text>
                 <View style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <Text style={{ fontSize: 15, color: '#1a1a1a', lineHeight: 1.7 }}>{q.text}</Text>
+                  <ToneText text={q.text} toneMap={toneMap} style={{ fontSize: 15, color: '#1a1a1a', lineHeight: 1.7 }} />
                   {(mode === 'HPE' || mode === 'HP') && q.pinyin ? (
-                    <Text style={{ fontSize: 13, color: '#888' }}>{q.pinyin}</Text>
+                    <TonePinyin pinyin={q.pinyin} toneMap={toneMap} style={{ fontSize: 13, color: '#888' }} />
                   ) : null}
                   {(mode === 'HPE' || mode === 'HE') && q.english ? (
                     <Text style={{ fontSize: 12, color: '#aaa' }}>{q.english}</Text>

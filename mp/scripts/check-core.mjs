@@ -27,6 +27,7 @@ import {
   coreFor, filterBank, countAvailable, selectItems,
   buildTestSequence, buildPracticeSession, nextRoundParams,
   extractFeedback, dimensionCells, buildCustomBank, statsByText,
+  toneAlign, TONE_COLORS,
 } from './src/core/utils/pronunciationBank'
 import { buildUrl, decodeRouteParams } from './src/platform/nav'
 import { computeRecordMetrics, summarizeMetrics, METRICS_VERSION } from './src/core/utils/conversationMetrics'
@@ -122,6 +123,16 @@ ok('选出的题全是「句」粒度', dailySess.items.every((i) => i.unit === 
 // 防二次解码：平台已经解过的中文原样放过；残缺的 % 序列不是编码，也不该被解
 eq('已解码的中文原样返回', decodeRouteParams({ unit: '句' }).unit, '句')
 eq('非编码的 % 保持原样', decodeRouteParams({ q: '100%' }).q, '100%')
+
+// ══════════════ 1.5 声调配色（逐字对齐） ══════════════
+// toneAlign 的完整检查在 Web 侧的 scripts/check-tones.mjs。这里留几条最关键的：
+// core/ 是同步过来的副本，万一同步漏了或补丁打歪了，这几条会先叫起来。
+eq('声调：你好吗？', toneAlign('你好吗？', 'Nǐ hǎo ma?').tones, [3, 3, 5, 0])
+eq('声调：我是学生。', toneAlign('我是学生。', 'Wǒ shì xuéshēng.').tones, [3, 4, 2, 1, 0])
+eq('声调：儿化继承前字', toneAlign('这儿', 'zhèr').tones, [4, 4])
+eq('声调：对不上就返回 null（宁可不配色）', toneAlign('你好', 'nǐ'), null)
+eq('声调：五色齐备', Object.keys(TONE_COLORS), ['1', '2', '3', '4', '5'])
+ok('声调：552 题全部能逐字对齐', PRON_BANK.every(it => toneAlign(it.text, it.pinyin)))
 
 // ══════════════ 2. 评测响应解析 ══════════════
 eq('coreFor 字→word', coreFor('字'), 'word')

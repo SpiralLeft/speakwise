@@ -271,6 +271,199 @@ export function dimensionCells(fb) {
   ].filter(d => d.value != null);
 }
 
+// ── 声调配色：从题库手写的拼音推出每个字的声调 ──
+//
+// 题库的 pinyin 是人工标注的、带调号、按词连写（"Nǐ hǎo ma?"），学生要读的正是这份
+// 读音 —— 所以声调从它推，而不是在题库里另存一份 tones 字段：两份数据早晚漂移。
+// 是纯函数（不碰 React、不碰平台 API），因而能被 scripts/check-tones.mjs 直接断言。
+//
+// 对不上就返回 null，调用方原样渲染、不配色。颜色错位比没有颜色坏得多：
+// 学生会照着错的调去读，而且没人看得出是标注错了。
+
+export const TONE_COLORS = { 1: "#2F74C0", 2: "#2DAA6E", 3: "#E8952F", 4: "#D4413A", 5: "#9AA0A6" };
+export const TONE_LABELS = { 1: "一声", 2: "二声", 3: "三声", 4: "四声", 5: "轻声" };
+export const TONE_SAMPLES = { 1: "ā", 2: "á", 3: "ǎ", 4: "à", 5: "a" };
+
+const TONE_MARKS = { 1: "āēīōūǖ", 2: "áéíóúǘ", 3: "ǎěǐǒǔǚ", 4: "àèìòùǜ" };
+
+// 去调 + 小写，只用于「切音节」的匹配。ü（和键盘上的 v）一并归到 u：
+// 分音节只需要字母边界正确，而 lüe/nüe 的书面形式本来就在按 ue 写。
+const VOWEL_BASE = "aeiouu";
+const DEBASE = (() => {
+  const m = new Map();
+  for (const [tone, marks] of Object.entries(TONE_MARKS)) {
+    [...marks].forEach((ch, i) => m.set(ch, VOWEL_BASE[i]));
+  }
+  m.set("ü", "u");
+  m.set("v", "u");
+  return m;
+})();
+
+const debase = (s) => {
+  let out = "";
+  for (const ch of String(s).toLowerCase()) out += DEBASE.get(ch) ?? ch;
+  return out;
+};
+
+function toneOf(syl) {
+  for (const [tone, marks] of Object.entries(TONE_MARKS)) {
+    for (const m of marks) {
+      if (syl.includes(m) || syl.includes(m.toUpperCase())) return Number(tone);
+    }
+  }
+  return 5;   // 无调号 = 轻声
+}
+
+const HAN = /[㐀-䶿一-鿿豈-﫿]/;   // 汉字（含扩展 A 与兼容区），标点不配色
+
+// 声母（长优先：zh/ch/sh 必须先于 z/c/s 试）与韵母（长优先：iang 先于 ia 先于 i）
+const INITIALS = ["zh", "ch", "sh", "b", "p", "m", "f", "d", "t", "n", "l", "g", "k", "h", "j", "q", "x", "r", "z", "c", "s", "y", "w"];
+const FINALS = ["iang", "iong", "uang", "ueng", "iao", "ian", "ing", "uai", "uan", "uen", "ang", "eng", "ong", "ai", "ei", "ao", "ou", "an", "en", "er", "ia", "ie", "iu", "in", "ua", "uo", "ui", "un", "ue", "a", "o", "e", "i", "u"]
+  .sort((a, b) => b.length - a.length);
+
+/** 切一个拼音词：返回 [起, 止) 下标数组，保留大小写；切不动返回 null */
+function splitToken(tok) {
+  const t = debase(tok);
+  const out = [];
+  let i = 0;
+  while (i < t.length) {
+    let j = i;
+    for (const ini of INITIALS) {
+      if (t.startsWith(ini, i)) { j = i + ini.length; break; }
+    }
+    let len = 0;
+    for (const f of FINALS) {
+      if (t.startsWith(f, j)) { len = f.length; break; }
+    }
+    if (!len) return null;
+    out.push([i, j + len]);
+    i = j + len;
+  }
+  return out;
+}
+
+const SYL_CHARS = (() => {
+  const s = new Set([..."abcdefghijklmnopqrstuvwxyz", "ü", "v"]);
+  for (const marks of Object.values(TONE_MARKS)) {
+    for (const ch of marks) { s.add(ch); s.add(ch.toUpperCase()); }
+  }
+  return s;
+})();
+
+/** 拼音串 → 字母片段与分隔符交替的序列；拼接回原文必须逐字相等 */
+function tokenize(pinyin) {
+  const parts = [];
+  let buf = "";
+  let prev = null;   // 当前缓冲区是不是字母
+  for (const ch of pinyin) {
+    const L = SYL_CHARS.has(ch.toLowerCase());
+    if (prev === null || L === prev) { buf += ch; prev = L; continue; }
+    parts.push({ text: buf, isLetter: prev });
+    buf = ch; prev = L;
+  }
+  if (buf) parts.push({ text: buf, isLetter: prev });
+  return parts;
+}
+
+/** 一个拼音词的候选切法：常规，以及（末尾是 r 时的）儿化 */
+function tokenCandidates(tok) {
+  const list = [];
+  const plain = splitToken(tok);
+  if (plain) list.push(plain);
+  // 儿化：末尾的 r 不构成独立音节（zhèr = 这 + 儿），拆成「音节 + 光杆 r」。
+  // 两种切法都存在时（ér 既可作「儿」也可作「二」），由下面的总数匹配来定夺。
+  if (tok.length > 1 && /r$/i.test(tok)) {
+    const stem = splitToken(tok.slice(0, -1));
+    if (stem) list.push([...stem, [tok.length - 1, tok.length]]);
+  }
+  return list;
+}
+
+/**
+ * 选出「音节总数 = 汉字数」的那一组切法。
+ * 总数是唯一的判据，也正是它能定夺儿化的歧义：zhèr 配 2 个汉字时只能拆成 这+儿。
+ */
+function chooseSplit(parts, need) {
+  const toks = parts.filter(p => p.isLetter).map(p => p.text);
+  const cands = toks.map(tokenCandidates);
+  const chosen = new Array(toks.length).fill(null);
+  const seen = new Set();   // (词序号, 已用音节数) 去重，句子长时不至于指数回溯
+
+  const dfs = (k, total) => {
+    if (k === toks.length) return total === need;
+    if (total >= need) return false;
+    const key = k + ":" + total;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    for (const cand of cands[k]) {
+      chosen[k] = cand;
+      if (dfs(k + 1, total + cand.length)) return true;
+    }
+    chosen[k] = null;
+    return false;
+  };
+
+  return dfs(0, 0) ? chosen : null;
+}
+
+const alignCache = new Map();
+
+/**
+ * 正文 + 拼音 → 逐字声调。返回 { tones, spans } 或 null（对不上）。
+ *   tones —— 与 Array.from(text) 等长；1-4 声、5 轻声、0 非汉字（不配色）
+ *   spans —— 拼音按音节切开，保留原空格与标点；拼接回原文逐字相等。tone=0 为分隔符
+ */
+export function toneAlign(text, pinyin) {
+  const key = String(text ?? "") + "\u0000" + String(pinyin ?? "");
+  if (alignCache.has(key)) return alignCache.get(key);
+
+  const result = computeAlign(text, pinyin);
+  // 自定义练习的文本不重样，缓存不能无限长
+  if (alignCache.size > 800) alignCache.clear();
+  alignCache.set(key, result);
+  return result;
+}
+
+function computeAlign(text, pinyin) {
+  const chars = Array.from(String(text ?? ""));
+  const hanCount = chars.filter(c => HAN.test(c)).length;
+  if (!hanCount || !pinyin) return null;
+
+  const parts = tokenize(String(pinyin));
+  const chosen = chooseSplit(parts, hanCount);
+  if (!chosen) return null;
+
+  // 按原文顺序摊平音节，并定调
+  const syls = [];
+  let k = 0;
+  for (const p of parts) {
+    if (!p.isLetter) continue;
+    for (const [s, e] of chosen[k++]) syls.push(p.text.slice(s, e));
+  }
+
+  const tones = [];
+  for (const s of syls) {
+    // 儿化的光杆 r 不独立成调，跟着前一个音节读（zhèr 的「儿」就是 zhè 的第四声）
+    tones.push(debase(s) === "r" && tones.length ? tones[tones.length - 1] : toneOf(s));
+  }
+
+  // 音节 → 正文汉字，逐字对齐
+  const charTones = [];
+  let si = 0;
+  for (const c of chars) charTones.push(HAN.test(c) ? tones[si++] : 0);
+
+  // 拼音 → 可渲染片段（分隔符原样保留，拼接回原文必须逐字相等）
+  const spans = [];
+  let pi = 0;
+  let pj = 0;
+  for (const p of parts) {
+    if (!p.isLetter) { spans.push({ text: p.text, tone: 0 }); continue; }
+    for (const [s, e] of chosen[pj++]) spans.push({ text: p.text.slice(s, e), tone: tones[pi++] });
+  }
+
+  return { tones: charTones, spans };
+}
+
 // ── 自定义练习：学生自己输入的文本 ──
 const MAX_SENTENCE_CHARS = 5000;   // 防御性上限，正常输入远达不到
 

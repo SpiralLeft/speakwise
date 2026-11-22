@@ -5,9 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SpeakWise 琢音</title>
     <link rel="icon" href="/logonew.png">
+    <style>
+      .site-footer {
+        padding: 4px 16px 18px;
+        background: #FAFAF7;
+        font-family: 'Noto Sans SC', sans-serif;
+        text-align: center;
+      }
+      .site-footer a {
+        color: #bbb;
+        font-size: 11px;
+        letter-spacing: 0.3px;
+        text-decoration: none;
+        transition: color 0.2s;
+      }
+      .site-footer a:hover {
+        color: #888;
+        text-decoration: underline;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <footer class="site-footer">
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">蜀ICP备2026064070号</a>
+    </footer>
   </body>
 </html>
